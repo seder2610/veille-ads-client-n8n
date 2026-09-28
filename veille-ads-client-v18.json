@@ -51,7 +51,7 @@
         "operation": "getAll",
         "databaseId": {
           "__rl": true,
-          "value": "371e27a7-f3e3-8104-abf3-ec5d673086f3",
+          "value": "REMPLACER_PAR_ID_BASE_NOTION",
           "mode": "id"
         },
         "returnAll": true,
@@ -261,7 +261,7 @@
         "operation": "create",
         "databaseId": {
           "__rl": true,
-          "value": "371e27a7-f3e3-8104-abf3-ec5d673086f3",
+          "value": "REMPLACER_PAR_ID_BASE_NOTION",
           "mode": "id"
         },
         "title": "={{ $json.title }}",

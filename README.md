@@ -26,7 +26,7 @@ Workflow de veille **orienté livraison client** : articles filtrés et limités
    - **Notion account** — accès lecture DB + création de pages.
    - **Google Gemini API** — clé API Gemini (nœud sous-modèle LangChain).
    - **Telegram account** — bot Telegram ; `chatId` déjà `6587303725`.
-3. Vérifier l’ID base Notion : `371e27a7-f3e3-8104-abf3-ec5d673086f3` (propriétés : Titre, Source, URL, Résumé, Tags, Date, Pertinence).
+3. Vérifier l’ID base Notion : `REMPLACER_PAR_ID_BASE_NOTION` (propriétés : Titre, Source, URL, Résumé, Tags, Date, Pertinence).
 4. Activer le workflow ; tester une exécution manuelle.
 
 ## Credentials
