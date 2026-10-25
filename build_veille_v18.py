@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-VEILLE_DB_ID = "371e27a7-f3e3-8104-abf3-ec5d673086f3"
+VEILLE_DB_ID = "<YOUR_NOTION_DATABASE_ID>"
 NOTION_CRED = {"id": "4rbkLchn0g0a74Te", "name": "Notion account"}
 TELEGRAM_CRED = {"id": "cAqYgyvMNZd6mPlk", "name": "Telegram account"}
 GEMINI_CRED = {"id": "mTD96rhOwH0wn5rL", "name": "Google Gemini API"}
@@ -327,7 +327,7 @@ nodes.append({
     "position": [x + 2560, 560],
     "continueOnFail": True,
     "parameters": {
-        "chatId": "6587303725",
+        "chatId": "<YOUR_TELEGRAM_CHAT_ID>",
         "text": "={{ $json.telegramMsg }}",
         "additionalFields": {"parse_mode": "Markdown", "disable_web_page_preview": True},
     },

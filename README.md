@@ -1,189 +1,83 @@
-# Veille ADS — Client (Gemini + LangChain v18)
+# Veille ADS — Client (n8n + Gemini)
 
-**Fichier généré :** `veille-ads-client-v18.json`  
-**Script de build :** `build_veille_v18.py`  
-**Nom n8n :** Veille ADS — Client (Gemini + LangChain) v18
+> **EN:** n8n workflow that monitors 6 RSS feeds, filters articles by relevance, summarizes them with Gemini (LangChain) and stores them in Notion, with Telegram alerts for high-relevance items.
+> **EN:** Built for marketing agencies: a weekday news digest delivered to a client workspace, capped at 3 articles per run to stay within API quotas.
+> **EN:** Generated from a Python build script; all personal identifiers are placeholders (see *Configuration*).
 
-## Vue d'ensemble
+**FR :** Workflow n8n de veille sectorielle qui lit 6 flux RSS, filtre par pertinence, résume chaque article avec Gemini et l'enregistre dans Notion, avec une alerte Telegram pour les articles à forte pertinence.
 
-Workflow de veille **orienté livraison client** : articles filtrés et limités, résumé IA via **Google Gemini 2.5-flash** (Basic LLM Chain), enregistrement **Notion natif** (create), alerte Telegram uniquement pour la pertinence 🔥 Haute.
+## Problème → Solution → Pour qui
 
-| Critère | Client v18 | Perso v3 |
-|--------|------------|----------|
-| LLM | Gemini 2.5-flash (cloud) | Ollama qwen2.5:14b **ou** Gemini |
-| Chaînes LangChain | 1 (résumé) | 2 (résumé + post LinkedIn) |
-| Limite articles / run | **Max 3** | Aucune limite |
-| Pertinence faible | Conservée (Notion) | **Exclue** du pipeline |
-| Mémoire Notion | `processedUrls` seulement | `processedUrls` + `needsUpdate` (upsert) |
-| Notion | Nœud **create** natif | HTTP PATCH + POST (upsert) |
-| Cron | `0 7,13 * * 1-5` (Lun–Ven) | `0 7,13 * * *` (tous les jours) |
-| Quota / coût | ~6 appels LLM/jour max | Ollama illimité ou quota Gemini perso |
+- **Problème :** une agence marketing (ou son client) n'a pas le temps de suivre l'actualité Google Ads / Meta Ads / automatisation.
+- **Solution :** 2 passages par jour en semaine, 3 articles maximum par passage, résumé actionnable en 3 points, archivage dans Notion, alerte Telegram sur les articles 🔥.
+- **Pour qui :** agences PPC / automatisation qui veulent livrer une veille à un client sans la rédiger à la main. Adaptable à un autre sujet : les sources, les mots-clés et le prompt sont dans `build_veille_v18.py`.
 
-## Import dans n8n
+## Résultat
 
-1. **Workflows → Import from file** → choisir `veille-ads-client-v18.json`.
-2. Ouvrir chaque nœud marqué avec credentials et associer :
-   - **Notion account** — accès lecture DB + création de pages.
-   - **Google Gemini API** — clé API Gemini (nœud sous-modèle LangChain).
-   - **Telegram account** — bot Telegram ; `chatId` déjà `6587303725`.
-3. Vérifier l’ID base Notion : `371e27a7-f3e3-8104-abf3-ec5d673086f3` (propriétés : Titre, Source, URL, Résumé, Tags, Date, Pertinence).
-4. Activer le workflow ; tester une exécution manuelle.
+Le dépôt ne contient pas d'enregistrement d'exécution réel. Voici donc la **structure de sortie**, déduite du code des nœuds *Assembler Article + Résumé IA* et *Résumé IA* (ce n'est pas un résultat d'exécution) :
 
-## Credentials
+| Entrée (article RSS) | Sortie Notion | Sortie Telegram (si 🔥 Haute) |
+|---|---|---|
+| titre, URL, source, extrait | Titre, Source, URL, Résumé (3 puces, 120 mots max, en français), Tags, Date, Pertinence (🔥 Haute / 🟡 Moyenne / ⬇️ Faible) | `🔥 *<titre>*` + résumé + `🔗 <url>` |
 
-| Credential | Nœuds concernés |
-|------------|-----------------|
-| Notion account | Charger URLs Notion, Notion — Créer Page |
-| Google Gemini API | Google Gemini Chat Model |
-| Telegram account | Telegram — Alerte |
+<!-- TODO capture: ligne Notion réelle (base veille remplie après une exécution) et message Telegram reçu -->
 
-## Cron
+## Architecture
 
-Expression : **`0 7,13 * * 1-5`** — exécution à **7h00** et **13h00**, **lundi à vendredi** (fuseau = celui de l’instance n8n).
-
-## Pattern LangChain (chainLlm + modèle)
-
-- **`Résumé IA — Basic LLM Chain`** (`@n8n/n8n-nodes-langchain.chainLlm`, v1.9) : reçoit les items après Jina ; le prompt utilise `{{ $json.title }}`, `{{ $json.source }}`, `{{ $json.articleContent }}`.
-- **`Google Gemini Chat Model`** (`lmChatGoogleGemini`) : **sous-nœud** relié par la connexion **`ai_languageModel`** (pas le flux `main`). Un modèle peut alimenter une ou plusieurs chains ; ici une seule chain.
-- Sortie chain : champ **`text`** (parfois `output`) → l’**Assembler** normalise en `ai_summary`.
-- **`continueOnFail: true`** sur la chain et Telegram : une erreur LLM ou d’envoi n’arrête pas tout le run.
-
----
-
-## Documentation nœud par nœud
-
-### Guide — Veille Client v18
-| | |
-|--|--|
-| **TYPE** | `stickyNote` |
-| **RÔLE** | Documentation visuelle dans le canvas |
-| **INPUT** | — |
-| **OUTPUT** | — |
-| **POURQUOI** | Rappel du flux et des credentials sans ouvrir le README |
-
-### 7h + 13h Lun-Ven
-| | |
-|--|--|
-| **TYPE** | `scheduleTrigger` |
-| **RÔLE** | Démarre le workflow sur cron |
-| **INPUT** | Horloge n8n |
-| **OUTPUT** | 1 item vide de déclenchement |
-| **POURQUOI** | Cadence bureau : 2×/jour en semaine, alignée quota Gemini (max 3 articles × 2 runs) |
-
-### Charger URLs Notion
-| | |
-|--|--|
-| **TYPE** | `notion` — databasePage / getAll |
-| **RÔLE** | Lit toutes les pages de la base veille |
-| **INPUT** | Trigger |
-| **OUTPUT** | 1 item par page Notion (properties) |
-| **POURQUOI** | Alimenter la mémoire anti-doublon via les URLs déjà stockées ; `alwaysOutputData` évite un blocage si la base est vide |
-
-### Initialiser mémoire
-| | |
-|--|--|
-| **TYPE** | `code` |
-| **RÔLE** | Fusionne les URLs Notion dans `$workflow.staticData.processedUrls` |
-| **INPUT** | Pages Notion |
-| **OUTPUT** | `{ ready, urlsChargees }` puis fan-out vers les RSS |
-| **POURQUOI** | Mémoire simple client : pas d’upsert, seulement « déjà vu » |
-
-### RSS — (6 flux)
-| | |
-|--|--|
-| **TYPE** | `rssFeedRead` |
-| **RÔLE** | Pull des flux publishers (SEL, AdExchanger, PPC Hero, SEJ, n8n Blog, WordStream) |
-| **INPUT** | Seed (parallèle ×6) |
-| **OUTPUT** | Items RSS bruts |
-| **POURQUOI** | URLs directes publisher → Jina fiable (pas Google News) |
-
-### Fusionner 6 flux
-| | |
-|--|--|
-| **TYPE** | `merge` — mode append |
-| **RÔLE** | Concatène les 6 entrées RSS |
-| **INPUT** | 6 branches RSS (index 0–5) |
-| **OUTPUT** | Flux unique d’articles |
-| **POURQUOI** | Un seul nœud filtre pour toute la veille |
-
-### Filtrer + Formater
-| | |
-|--|--|
-| **TYPE** | `code` |
-| **RÔLE** | Déduplication, fraîcheur 7j, mots-clés PPC/automation, score pertinence, **max 3** articles triés |
-| **INPUT** | Items RSS mergés + staticData |
-| **OUTPUT** | `{ title, url, source, snippet, tags, pertinence, pubISO }` |
-| **POURQUOI** | Qualité + quota API : priorité 🔥 puis 🟡, cap à 3 |
-
-### Jina — Lire Article
-| | |
-|--|--|
-| **TYPE** | `code` (runOnceForEachItem) |
-| **RÔLE** | `fetch` vers `https://r.jina.ai/{url}` → `articleContent` |
-| **INPUT** | Article filtré |
-| **OUTPUT** | Item enrichi (fallback snippet) |
-| **POURQUOI** | Contenu complet pour un résumé utile |
-
-### Résumé IA — Basic LLM Chain
-| | |
-|--|--|
-| **TYPE** | `chainLlm` v1.9 |
-| **RÔLE** | Prompt structuré → synthèse FR 3 bullets |
-| **INPUT** | Item Jina (flux main) + modèle Gemini (ai_languageModel) |
-| **OUTPUT** | `{ text, ... }` |
-| **POURQUOI** | LangChain natif n8n, pas d’HTTP Gemini manuel ; `continueOnFail` |
-
-### Google Gemini Chat Model
-| | |
-|--|--|
-| **TYPE** | `lmChatGoogleGemini` |
-| **RÔLE** | Modèle `gemini-2.5-flash`, temp 0.3 |
-| **INPUT** | Connexion ai_languageModel depuis la chain |
-| **OUTPUT** | (interne LangChain) |
-| **POURQUOI** | Qualité client + latence acceptable |
-
-### Assembler Article + Résumé IA
-| | |
-|--|--|
-| **TYPE** | `code` |
-| **RÔLE** | Parse `text`/`output`, recolle métadonnées Jina, `ai_summary`, `telegramMsg` |
-| **INPUT** | Sortie chain |
-| **OUTPUT** | Item prêt Notion + Telegram |
-| **POURQUOI** | La chain ne porte pas toutes les colonnes métier |
-
-### Notion — Créer Page
-| | |
-|--|--|
-| **TYPE** | `notion` — databasePage / create |
-| **RÔLE** | Crée une ligne dans la base veille |
-| **INPUT** | Item assemblé |
-| **OUTPUT** | Page Notion créée |
-| **POURQUOI** | Intégration native (mapping propertiesUi) vs HTTP — flux client = create only |
-
-### Seulement Haute pertinence
-| | |
-|--|--|
-| **TYPE** | `filter` |
-| **RÔLE** | `pertinence` contient « Haute » |
-| **INPUT** | Branche parallèle depuis Assembler |
-| **OUTPUT** | Sous-ensemble 🔥 |
-| **POURQUOI** | Telegram = signal fort uniquement |
-
-### Telegram — Alerte
-| | |
-|--|--|
-| **TYPE** | `telegram` |
-| **RÔLE** | Envoie `telegramMsg` Markdown à `6587303725` |
-| **INPUT** | Articles haute pertinence |
-| **OUTPUT** | Message envoyé |
-| **POURQUOI** | Notification mobile ; `continueOnFail` si bot indisponible |
-
----
-
-## Regénérer le JSON
-
-```bash
-python3 build_veille_v18.py
+```mermaid
+flowchart LR
+    S[Cron 07:00 et 13:00<br/>lundi-vendredi] --> N[Charger URLs Notion]
+    N --> M[Mémoire anti-doublon<br/>processedUrls]
+    M --> R[6 flux RSS] --> F[Fusionner]
+    F --> P[Filtrer + Formater<br/>fraîcheur 7 j, mots-clés, score, max 3]
+    P --> J[Jina Reader<br/>texte complet]
+    J --> L[Basic LLM Chain<br/>Gemini 2.5-flash]
+    L --> A[Assembler]
+    A --> NC[Notion : créer la page]
+    A --> H{Pertinence Haute ?}
+    H -- oui --> T[Telegram]
 ```
 
-**Nombre de nœuds :** 19 (dont 1 sticky + 6 RSS).
+## Prérequis
+
+- n8n avec les nœuds LangChain (Basic LLM Chain v1.9, Google Gemini Chat Model). La version minimale exacte n'a pas été vérifiée.
+- Credentials n8n : Notion, Google Gemini API, Telegram (bot).
+- Une base Notion avec les propriétés : Titre, Source, URL, Résumé, Tags, Date, Pertinence.
+- Coût : non calculé dans ce dépôt. Le volume est borné à 3 articles × 2 passages par jour ouvré, soit 6 appels LLM par jour au plus.
+
+## Installation
+
+1. Créer la base Notion (propriétés ci-dessus) et la partager avec votre intégration Notion.
+2. Dans `build_veille_v18.py`, renseigner `VEILLE_DB_ID` ; dans le nœud Telegram, renseigner votre chat ID. Régénérer le JSON : `python3 build_veille_v18.py` (ou modifier directement les nœuds après import).
+3. n8n → **Workflows → Import from file** → `veille-ads-client-v18.json`.
+4. Associer vos credentials Notion, Google Gemini API et Telegram sur chaque nœud concerné.
+5. Lancer une exécution manuelle et vérifier qu'une page Notion est créée.
+6. Activer le workflow.
+
+## Configuration
+
+| Placeholder / réglage | Où le trouver | Nœud concerné |
+|---|---|---|
+| `<YOUR_NOTION_DATABASE_ID>` | URL de la base Notion (32 caractères) | Charger URLs Notion, Notion — Créer Page |
+| `<YOUR_TELEGRAM_CHAT_ID>` | Votre bot Telegram, par exemple via `getUpdates` | Telegram — Alerte |
+| Credential Notion / Gemini / Telegram | n8n → Credentials | voir ci-dessus |
+| Cron `0 7,13 * * 1-5` | Fuseau = celui de l'instance n8n | 7h + 13h Lun-Ven |
+
+Les identifiants de credentials présents dans le JSON (`4rbkLch…` etc.) sont des identifiants internes d'une instance n8n : après import, ré-sélectionnez vos propres credentials.
+
+## Statut et limites
+
+- **Statut : base de départ.** Aucune exécution documentée dans ce dépôt.
+- Filtre par mots-clés simples (sous-chaînes) : peut laisser passer ou rater des articles.
+- Mémoire anti-doublon : `staticData` n8n + URLs déjà présentes dans Notion.
+- Les erreurs LLM ou Telegram n'arrêtent pas le run (`continueOnFail`).
+- Les contenus lus via Jina Reader (`r.jina.ai`) transitent par ce service tiers.
+- `build_veille_v17.py` est conservé pour mémoire (voir `CHANGELOG.md`).
+
+## Documentation détaillée des nœuds
+
+Pour la description nœud par nœud, ouvrir le workflow dans n8n (la note *Guide* résume le flux) ou lire `build_veille_v18.py`, qui définit chaque nœud, prompt et code.
+
+## Licence
+
+MIT, voir [LICENSE](LICENSE).

@@ -51,7 +51,7 @@
         "operation": "getAll",
         "databaseId": {
           "__rl": true,
-          "value": "371e27a7-f3e3-8104-abf3-ec5d673086f3",
+          "value": "<YOUR_NOTION_DATABASE_ID>",
           "mode": "id"
         },
         "returnAll": true,
@@ -261,7 +261,7 @@
         "operation": "create",
         "databaseId": {
           "__rl": true,
-          "value": "371e27a7-f3e3-8104-abf3-ec5d673086f3",
+          "value": "<YOUR_NOTION_DATABASE_ID>",
           "mode": "id"
         },
         "title": "={{ $json.title }}",
@@ -339,7 +339,7 @@
       ],
       "continueOnFail": true,
       "parameters": {
-        "chatId": "6587303725",
+        "chatId": "<YOUR_TELEGRAM_CHAT_ID>",
         "text": "={{ $json.telegramMsg }}",
         "additionalFields": {
           "parse_mode": "Markdown",
